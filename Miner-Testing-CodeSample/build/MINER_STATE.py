@@ -303,10 +303,10 @@ class State:
 
         remainTurn = self.mapInfo.maxStep - self.stepCount
         print(remainTurn)
-        self.D = max(1, remainTurn // 50)
+        # self.D = max(1, remainTurn // 50)
         # self.D = 3
-        # if self.stepCount <= 50:
-        #     self.D = 1
+        if self.stepCount <= 50:
+            self.D = 1
         x,y = self.x, self.y
         if self.shouldFree():
             return Action.FREE
