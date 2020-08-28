@@ -6,8 +6,7 @@ def str_2_json(str):
     return json.loads(str, encoding="utf-8")
 
 
-D = 3
-
+# self.D = 3
 
 class Action:
     GO_LEFT = "0"
@@ -108,6 +107,7 @@ class State:
         self.maxp = None
         self.freeCount = 0
         self.APath = []
+        self.D = 0
 
     def init_state(self, data):  # parse data from server into object
         game_info = str_2_json(data)
@@ -121,6 +121,8 @@ class State:
         self.maxEnergy = self.energy
         self.mapInfo.init_map(game_info["gameinfo"])
         self.stepCount = 0
+        # self.D = self.mapInfo.maxStep // 25
+        self.D = 3
         self.status = State.STATUS_PLAYING
         self.players = [{"playerId": 2, "posx": self.x, "posy": self.y},
                         {"playerId": 3, "posx": self.x, "posy": self.y},
@@ -187,8 +189,8 @@ class State:
 
     def distance(self, x, y, mx, my):
         d = 9999999
-        for ki in range(D):
-            for kj in range(D):
+        for ki in range(self.D):
+            for kj in range(self.D):
                 d = min(d, abs(ki + x - mx) + abs(kj + y - my))
         print("Distance from: [{},{}] -> [{},{}] = {}".format(x, y, mx, my, d))
         return d
@@ -222,8 +224,9 @@ class State:
         m = 0
         x = -1
         y = -1
-        for ki in range(D):
-            for kj in range(D):
+        print(self.stepCount, self.D)
+        for ki in range(self.D):
+            for kj in range(self.D):
                 print("{},{}: {}".format(
                     ki + maxp[0], kj + maxp[1], self.Map[ki + maxp[0]][kj + maxp[1]]))
                 if m < self.Map[ki + maxp[0]][kj + maxp[1]]:
@@ -240,15 +243,17 @@ class State:
         self.maxp = [0]*3
         d = 999999
         # remainStep = self.mapInfo.maxStep - self.stepCount
+        print("D", self.D)
         f = [[0 for i in range(len(self.Map[j]))]
              for j in range(len(self.Map))]
-        for i in range(len(f)-D+1):
-            for j in range(len(f[i])-D+1):
-                for ki in range(D):
-                    for kj in range(D):
+        for i in range(len(f)-self.D+1):
+            for j in range(len(f[i])-self.D+1):
+                for ki in range(self.D):
+                    for kj in range(self.D):
                         # f[i][j] += self.Map[i+ki][j+kj]
                         # print(i+ki, j+kj)
                         f[i][j] += max(self.Map[i+ki][j+kj], 0)
+                print(i,)
                 if self.maxp[2] < f[i][j] and f[i][j] > min:
                     self.maxp[2] = f[i][j]
                     self.maxp[0] = i
@@ -292,10 +297,16 @@ class State:
                 return Action.GO_UP
             elif (nextAction[0] > y):
                 return Action.GO_DOWN
-
                 
     # basic with some optimize
     def calcNextAction2(self):
+
+        remainTurn = self.mapInfo.maxStep - self.stepCount
+        print(remainTurn)
+        self.D = max(1, remainTurn // 50)
+        # self.D = 3
+        # if self.stepCount <= 50:
+        #     self.D = 1
         x,y = self.x, self.y
         if self.shouldFree():
             return Action.FREE
@@ -310,14 +321,18 @@ class State:
             # self.crafted[y][x] = 1
             return Action.CRAFT
         
-        nextAction = self.nextTarget(self.maxp)
-        print("Next: ", nextAction)
+        nextAction = None
+        if self.Map[y][x] == -1:
+            nextAction = self.findNearby(x,y)
         if nextAction is None:
-            self.maxp = self.findm(x, y)
             nextAction = self.nextTarget(self.maxp)
-            print(self.maxp)
-        print("Current x,y: {},{}".format(x,y))
-        print(nextAction, x, y)
+            print("Next: ", nextAction)
+            if nextAction is None:
+                self.maxp = self.findm(x, y)
+                nextAction = self.nextTarget(self.maxp)
+                print(self.maxp)
+            print("Current x,y: {},{}".format(x,y))
+            print(nextAction, x, y)
         if nextAction:
             start = (y,x)
             end = tuple(nextAction)
@@ -349,7 +364,12 @@ class State:
         
         return Action.FREE
 
-
+    def findNearby(self, x,y):
+        for i,j in [[0, 1], [1, 0], [0,-1], [-1, 0]]:
+            if y+i >= 0 and y+i <= self.mapInfo.max_y and x+j >=0 and x+j <= self.mapInfo.max_x:
+                numberOfPlayerAtPos = self.countPlayerAtPos(x+j,y+i)
+                if self.Map[y+i][x+j] >= 50 and numberOfPlayerAtPos == 0:
+                    return (y+i, x+j)
 
 # x = astar([[450, -10, -1, -10, 150, -20, -1, -1, -1, -1, -20, -10, -10, -10, -1, -1, -1, -1, -1, -1, -1], [-10, -10, -10, -10, -20, -1, -20, -20, -20, -20, -5, 50, -10, -10, -10, -10, -20, -5, -1, -10, -20], [-10, -10, 200, -10, -1, -10, -1, -10, -5, -5, -10, -1, -5, -10, -10, -1, -40, -40, -1, -1, -1], [-1, -5, -5, -10, -1, -1, -20, -1, 550, -5, -10, -1, -1, -1, -20, -1, -1, -20, -20, -20, -10], [-10, -1, -1, -1, -20, -1, -20, 50, 300, -5, -10, -1, -5, -1, -1, -1, -20, -5, -5, -1, -20], [-20, -5, -20, -5, -1, -10, -1, -1, -10, -20, 100, -5, -1, -1, -1, -40, -1, -10, -5, -1, -1], [-10, -5, -20, -5, -20, 500, -20, -5, -10, -20, -1, -20, -1, -20, -1, -20, -1, -10, -5, -20, -20], [-1, -5, -20, -5, -1, -10, -5, -5, -1, -1, -1, -1, -10, -1, -10, -5, -20, -20, -20, -1, -20], [1200, -5, -20, -5, -20, -20, -10, -10, -1, -20, 150, -10, -1, -10, -1, -1, -10, -5, -5, -1, 50]], (8, 19), (8, 20))
 # y = findPath([[450, -10, -1, -10, 150, -20, -1, -1, -1, -1, -20, -10, -10, -10, -1, -1, -1, -1, -1, -1, -1], [-10, -10, -10, -10, -20, -1, -20, -20, -20, -20, -5, 50, -10, -10, -10, -10, -20, -5, -1, -10, -20], [-10, -10, 200, -10, -1, -10, -1, -10, -5, -5, -10, -1, -5, -10, -10, -1, -40, -40, -1, -1, -1], [-1, -5, -5, -10, -1, -1, -20, -1, 550, -5, -10, -1, -1, -1, -20, -1, -1, -20, -20, -20, -10], [-10, -1, -1, -1, -20, -1, -20, 50, 300, -5, -10, -1, -5, -1, -1, -1, -20, -5, -5, -1, -20], [-20, -5, -20, -5, -1, -10, -1, -1, -10, -20, 100, -5, -1, -1, -1, -40, -1, -10, -5, -1, -1], [-10, -5, -20, -5, -20, 500, -20, -5, -10, -20, -1, -20, -1, -20, -1, -20, -1, -10, -5, -20, -20], [-1, -5, -20, -5, -1, -10, -5, -5, -1, -1, -1, -1, -10, -1, -10, -5, -20, -20, -20, -1, -20], [1200, -5, -20, -5, -20, -20, -10, -10, -1, -20, 150, -10, -1, -10, -1, -1, -10, -5, -5, -1, 50]], (8, 19), (8, 20))
